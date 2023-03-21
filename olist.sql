@@ -323,4 +323,38 @@
 --UPDATE product_category_name_translation SET category_name_english = REPLACE(category_name_english, '_', ' ');
 --UPDATE product_category_name_translation SET category_name_spanish = REPLACE(category_name_spanish, '_', ' ');
 
+-- Task 10: Transform the data
+-- Create the order total column in order_items table
+
+--ALTER TABLE order_items ADD order_total VARCHAR(20);
+--UPDATE order_items SET order_total = price + freight_value
+
+-- Change order_total column to a float
+--ALTER TABLE order_items
+--ALTER COLUMN order_total FLOAT;
+
+-- Create order_size_cohort table
+--ALTER TABLE order_items ADD order_size_cohort VARCHAR(20);
+
+-- Insert the vaues based on the criteria
+--UPDATE order_items SET order_size_cohort = 
+--    CASE 
+--        WHEN order_total < 50 THEN 'Small'
+--        WHEN order_total BETWEEN 50 AND 200 THEN 'Medium'
+--        WHEN order_total > 200 THEN 'Large'
+--    END;
+
+CREATE VIEW product_size_cohorts AS
+SELECT
+    orders.customer_id,
+	customers.customer_unique_id,
+    orders.order_id,
+    orders.purchase_timestamp AS order_date,
+    products.category_name AS product_category,
+    order_items.order_size_cohort
+FROM
+    order_items
+    JOIN orders ON orders.order_id = order_items.order_id
+    JOIN customers ON orders.customer_id = customers.customer_id
+	JOIN products ON ;
 
