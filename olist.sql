@@ -2,8 +2,9 @@
 --CREATE DATABASE olist
 --USE olist;
 
- --Task 1: Check for and remove any duplicate rows in the dataset to avoid skewing the analysis results.
- --This query would show the values with duplicates
+-- Data Preperation
+--Task 1: Check for and remove any duplicate rows in the dataset to avoid skewing the analysis results.
+--This query would show the values with duplicates
 --SELECT *, COUNT(*)
 --FROM customers
 --GROUP BY customer_unique_id, customer_id, customer_zip_code_prefix, customer_city, customer_state
@@ -322,7 +323,7 @@
 -- Task 9: Change underscores to space
 --UPDATE product_category_name_translation SET category_name_english = REPLACE(category_name_english, '_', ' ');
 --UPDATE product_category_name_translation SET category_name_spanish = REPLACE(category_name_spanish, '_', ' ');
-
+--UPDATE products SET category_name = REPLACE(category_name, '_', ' ')
 -- Task 10: Transform the data
 -- Create the order total column in order_items table
 
@@ -336,7 +337,7 @@
 -- Create order_size_cohort table
 --ALTER TABLE order_items ADD order_size_cohort VARCHAR(20);
 
--- Insert the vaues based on the criteria
+-- Insert the values based on the criteria
 --UPDATE order_items SET order_size_cohort = 
 --    CASE 
 --        WHEN order_total < 50 THEN 'Small'
@@ -344,17 +345,68 @@
 --        WHEN order_total > 200 THEN 'Large'
 --    END;
 
-CREATE VIEW product_size_cohorts AS
+-- Create dataset for analysis
+--CREATE VIEW product_size_cohorts AS
+--SELECT
+--    orders.customer_id,
+--	customers.customer_unique_id,
+--    orders.order_id,
+--    CAST(orders.purchase_timestamp AS DATE) AS order_date,
+--    (SELECT category_name_english
+--     FROM product_category_name_translation
+--     WHERE category_name_spanish = products.category_name) AS product_category,
+--    order_items.order_size_cohort,
+--	  order_items.order_total
+--FROM
+--    orders
+--    LEFT JOIN order_items ON orders.order_id = order_items.order_id
+--    LEFT JOIN customers ON orders.customer_id = customers.customer_id
+--    LEFT JOIN products ON order_items.product_id = products.product_id;
+
+
+--Clean the data
+-- Check for duplicate values
+--SELECT *, COUNT(*)
+--FROM product_size_cohorts
+--GROUP BY customer_id, customer_unique_id, order_id, order_date, product_category, order_size_cohort, order_total
+--HAVING COUNT(*) > 1;
+
+-- Remove duplicate rows
+--SELECT DISTINCT *
+--FROM product_size_cohorts
+
+-- Check for NULL values
+--SELECT *
+--FROM product_size_cohorts
+--WHERE customer_id IS NULL 
+--	OR customer_unique_id IS NULL 
+--	OR order_id IS NULL 
+--	OR order_date IS NULL 
+--	OR product_category IS NULL
+--	OR order_size_cohort IS NULL
+--  OR order_total IS NULL
+
+-- Replace NULL values with N/A
+-- Null values can not be replaced or deleted so it woud be done in Power BI
+-- END OF DATA PREPERATION
+
+
+
+-- Feature Engineering
+-- Create new variables or features from existing data to gain insights on the data.
+-- Calculate the frequency, recency, and monetary value of each customer in order to capture important information about customer behavior
 SELECT
-    orders.customer_id,
-	customers.customer_unique_id,
-    orders.order_id,
-    orders.purchase_timestamp AS order_date,
-    products.category_name AS product_category,
-    order_items.order_size_cohort
+    customer_unique_id,
+    COUNT(DISTINCT order_id) AS frequency,
+    DATEDIFF(day, MAX(order_date), (SELECT MAX(order_date) FROM product_size_cohorts)) AS recency,
+    AVG(order_total) AS monetary_value
 FROM
-    order_items
-    JOIN orders ON orders.order_id = order_items.order_id
-    JOIN customers ON orders.customer_id = customers.customer_id
-	JOIN products ON ;
+    product_size_cohorts
+GROUP BY
+    customer_unique_id;
+
+
+
+
+
 
