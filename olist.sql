@@ -322,7 +322,7 @@ WHERE category_name_english = 'product_category_name_english'
 -- Task 9: Change underscores to space
 UPDATE product_category_name_translation SET category_name_english = REPLACE(category_name_english, '_', ' ');
 UPDATE product_category_name_translation SET category_name_spanish = REPLACE(category_name_spanish, '_', ' ');
-UPDATE products SET category_name = REPLACE(category_name, '_', ' ')
+UPDATE products SET category_name = REPLACE(category_name, '_', ' ');
 
 -- Task 10: Transform the data
 -- Create the order total column in order_items table
@@ -334,7 +334,7 @@ UPDATE order_items SET order_total = price + freight_value
 ALTER TABLE order_items
 ALTER COLUMN order_total FLOAT;
 
--- Create order_size_cohort table
+-- Create order_size_cohort column
 ALTER TABLE order_items ADD order_size_cohort VARCHAR(20);
 
 -- Insert the values based on the criteria
@@ -346,7 +346,7 @@ UPDATE order_items SET order_size_cohort =
     END;
 
 -- Create dataset for analysis
-CREATE VIEW product_size_cohorts AS
+CREATE VIEW olist_new AS
 SELECT
     orders.customer_id,
 	customers.customer_unique_id,
@@ -365,19 +365,19 @@ FROM
 
 
 --Clean the data
- Check for duplicate values
+--Check for duplicate values
 SELECT *, COUNT(*)
-FROM product_size_cohorts
+FROM olist_new
 GROUP BY customer_id, customer_unique_id, order_id, order_date, product_category, order_size_cohort, order_total
 HAVING COUNT(*) > 1;
 
 -- Remove duplicate rows
 SELECT DISTINCT *
-FROM product_size_cohorts
+FROM olist_new
 
 -- Check for NULL values
 SELECT *
-FROM product_size_cohorts
+FROM olist_new
 WHERE customer_id IS NULL 
 	OR customer_unique_id IS NULL 
 	OR order_id IS NULL 
@@ -393,21 +393,60 @@ WHERE customer_id IS NULL
 
 
 -- Analysis
--- Cohort analysis
--- Task 1: Calculate the frequency, recency, and monetary value of each customer in order to capture important information about customer behavior
+-- Task 1: Calculate the total revenue from each category in the product_category cohort and the order_size cohort
+SELECT order_size_cohort, SUM(order_total) AS total_revenue
+FROM olist_new
+GROUP BY order_size_cohort
+ORDER BY total_revenue DESC;
+
+SELECT product_category, SUM(order_total) AS total_revenue
+FROM olist_new
+GROUP BY product_category
+ORDER BY total_revenue DESC;
+--		Summary: The medium orders have the highest revenue, followed by the large, then the small. 
+--				 The health beauty category has the highest revenue and the least category is security and services.
+
+-- Task 2: Calculate the average revenue from each category in the product_category cohort and the order_size cohort
+SELECT order_size_cohort, AVg(order_total) AS avg_revenue
+FROM olist_new
+GROUP BY order_size_cohort
+ORDER BY avg_revenue DESC;
+
+SELECT product_category, AVG(order_total) AS avg_revenue
+FROM olist_new
+GROUP BY product_category
+ORDER BY avg_revenue DESC;
+--		Summary: The large orders have the highest average, followed by medium then small.
+--				 The product category with the highest category are computers and the least category is home comfort 2
+
+-- Task 3: Calculate the total orders from each product category and order size.
+SELECT product_category, COUNT(product_category) AS num_of_orders
+FROM olist_new
+GROUP BY product_category
+ORDER BY num_of_orders DESC;
+
+SELECT order_size_cohort, COUNT(order_size_cohort) AS num_of_orders
+FROM olist_new
+GROUP BY order_size_cohort
+ORDER BY num_of_orders DESC;
+--		Summary: The medium orders have the highest number of orders, followed by small then medium
+--				 The product category with the highest number of orders and least number of orders are bed bath table and security and services.
+
+-- Task 4: Calculate the frequency, recency, and monetary value of each customer in order to capture important information about customer behavior
+-- This would help me identify the most valuable customers, understand their buying habits, and develop targeted marketing strategies.
 SELECT
     customer_unique_id,
     COUNT(DISTINCT order_id) AS frequency,
     DATEDIFF(day, MAX(order_date), (SELECT MAX(order_date) FROM product_size_cohorts)) AS recency,
     AVG(order_total) AS monetary_value
 FROM
-    product_size_cohorts
+    olist_new
 GROUP BY
-    customer_unique_id;
+    customer_unique_id
+ORDER BY
+	frequency DESC;
 
--- Next calculate the amount of customers in each cohort
-
-
+-- Segmentation
 
 
 
