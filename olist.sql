@@ -334,11 +334,11 @@ UPDATE order_items SET order_total = price + freight_value
 ALTER TABLE order_items
 ALTER COLUMN order_total FLOAT;
 
--- Create order_size_cohort column
-ALTER TABLE order_items ADD order_size_cohort VARCHAR(20);
+-- Create order_size column
+ALTER TABLE order_items ADD order_size VARCHAR(20);
 
 -- Insert the values based on the criteria
-UPDATE order_items SET order_size_cohort = 
+UPDATE order_items SET order_size = 
     CASE 
         WHEN order_total < 50 THEN 'Small'
         WHEN order_total BETWEEN 50 AND 200 THEN 'Medium'
@@ -355,7 +355,7 @@ SELECT
     (SELECT category_name_english
      FROM product_category_name_translation
      WHERE category_name_spanish = products.category_name) AS product_category,
-    order_items.order_size_cohort,
+    order_items.order_size,
 	  order_items.order_total
 FROM
     orders
@@ -363,12 +363,11 @@ FROM
     LEFT JOIN customers ON orders.customer_id = customers.customer_id
     LEFT JOIN products ON order_items.product_id = products.product_id;
 
-
 --Clean the data
 --Check for duplicate values
 SELECT *, COUNT(*)
 FROM olist_new
-GROUP BY customer_id, customer_unique_id, order_id, order_date, product_category, order_size_cohort, order_total
+GROUP BY customer_id, customer_unique_id, order_id, order_date, product_category, order_size, order_total
 HAVING COUNT(*) > 1;
 
 -- Remove duplicate rows
@@ -383,7 +382,7 @@ WHERE customer_id IS NULL
 	OR order_id IS NULL 
 	OR order_date IS NULL 
 	OR product_category IS NULL
-	OR order_size_cohort IS NULL
+	OR order_size IS NULL
   OR order_total IS NULL
 
 -- Replace NULL values with N/A
@@ -393,10 +392,10 @@ WHERE customer_id IS NULL
 
 
 -- Analysis
--- Task 1: Calculate the total revenue from each category in the product_category cohort and the order_size cohort
-SELECT order_size_cohort, SUM(order_total) AS total_revenue
+-- Task 1: Calculate the total revenue from each category in the product_category segment and the order_size segment
+SELECT order_size, SUM(order_total) AS total_revenue
 FROM olist_new
-GROUP BY order_size_cohort
+GROUP BY order_size
 ORDER BY total_revenue DESC;
 
 SELECT product_category, SUM(order_total) AS total_revenue
@@ -406,10 +405,10 @@ ORDER BY total_revenue DESC;
 --		Summary: The medium orders have the highest revenue, followed by the large, then the small. 
 --				 The health beauty category has the highest revenue and the least category is security and services.
 
--- Task 2: Calculate the average revenue from each category in the product_category cohort and the order_size cohort
-SELECT order_size_cohort, AVg(order_total) AS avg_revenue
+-- Task 2: Calculate the average revenue from each category in the product_category segment and the order_size segment
+SELECT order_size, AVG(order_total) AS avg_revenue
 FROM olist_new
-GROUP BY order_size_cohort
+GROUP BY order_size
 ORDER BY avg_revenue DESC;
 
 SELECT product_category, AVG(order_total) AS avg_revenue
@@ -419,25 +418,25 @@ ORDER BY avg_revenue DESC;
 --		Summary: The large orders have the highest average, followed by medium then small.
 --				 The product category with the highest category are computers and the least category is home comfort 2
 
--- Task 3: Calculate the total orders from each product category and order size.
+-- Task 3: Calculate the total orders from each product category segment and order size segemnt.
 SELECT product_category, COUNT(product_category) AS num_of_orders
 FROM olist_new
 GROUP BY product_category
 ORDER BY num_of_orders DESC;
 
-SELECT order_size_cohort, COUNT(order_size_cohort) AS num_of_orders
+SELECT order_size, COUNT(order_size_cohort) AS num_of_orders
 FROM olist_new
-GROUP BY order_size_cohort
+GROUP BY order_size
 ORDER BY num_of_orders DESC;
---		Summary: The medium orders have the highest number of orders, followed by small then medium
---				 The product category with the highest number of orders and least number of orders are bed bath table and security and services.
+--		Summary: The medium orders have the highest number of orders, followed by small then large
+--				 The product category with the highest number of orders is bed bath table and least number of orders are bed bath table and security and services.
 
 -- Task 4: Calculate the frequency, recency, and monetary value of each customer in order to capture important information about customer behavior
 -- This would help me identify the most valuable customers, understand their buying habits, and develop targeted marketing strategies.
 SELECT
     customer_unique_id,
     COUNT(DISTINCT order_id) AS frequency,
-    DATEDIFF(day, MAX(order_date), (SELECT MAX(order_date) FROM product_size_cohorts)) AS recency,
+    DATEDIFF(day, MAX(order_date), (SELECT MAX(order_date) FROM olist_new)) AS recency,
     AVG(order_total) AS monetary_value
 FROM
     olist_new
@@ -446,7 +445,57 @@ GROUP BY
 ORDER BY
 	frequency DESC;
 
+-- Retention rate
+WITH rfm_model AS (
+    SELECT 
+        customer_unique_id,
+        COUNT(DISTINCT order_id) AS frequency,
+        DATEDIFF(day, MAX(order_date), (SELECT MAX(order_date) FROM olist_new)) AS recency,
+        AVG(order_total) AS monetary_value
+    FROM 
+        olist_new
+    GROUP BY 
+        customer_unique_id
+)
+SELECT 
+    COUNT(DISTINCT CASE WHEN recency <= 90 THEN customer_unique_id END) AS retained_customers,
+    COUNT(DISTINCT CASE WHEN recency > 90 THEN customer_unique_id END) AS lost_customers,
+    COUNT(DISTINCT customer_unique_id) AS total_customers,
+    COUNT(DISTINCT CASE WHEN recency <= 90 THEN customer_unique_id END)*1.0/COUNT(DISTINCT customer_unique_id) AS retention_rate
+FROM 
+    rfm_model;
+
+
+
 -- Segmentation
+WITH rfm_model AS (
+    SELECT 
+        customer_unique_id,
+        COUNT(DISTINCT order_id) AS frequency,
+        DATEDIFF(day, MAX(order_date), (SELECT MAX(order_date) FROM olist_new)) AS recency,
+        AVG(order_total) AS monetary_value
+    FROM 
+        olist_new
+    GROUP BY 
+        customer_unique_id
+)
+
+SELECT 
+    customer_unique_id,
+    frequency,
+    recency,
+    monetary_value,
+    CASE 
+        WHEN monetary_value > 100 AND frequency > 5 AND recency < 90 THEN 'High-Value Customers'
+        WHEN monetary_value < 50 AND frequency < 2 AND recency > 180 THEN 'At-Risk Customers'
+        WHEN monetary_value < 50 AND frequency < 2 AND recency < 30 THEN 'New Customers'
+        WHEN monetary_value < 50 AND frequency < 2 AND recency > 30 AND recency < 180 THEN 'Low-Value Customers'
+        WHEN frequency > 5 AND recency < 30 THEN 'Loyal Customers'
+        ELSE 'Other Customers'
+    END AS customer_segment
+FROM 
+    rfm_model
+
 
 
 
