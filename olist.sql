@@ -496,6 +496,47 @@ SELECT
 FROM 
     rfm_model
 
+-- Customer Lifespan
+WITH customer_lifespan AS (
+	SELECT
+    o.customer_unique_id,
+    MIN(o.order_date) AS first_purchase,
+    MAX(o.order_date) AS last_purchase,
+    CASE
+        WHEN DATEDIFF(day, MIN(o.order_date), MAX(o.order_date)) = 0
+        THEN 1
+        ELSE DATEDIFF(day, MIN(o.order_date), MAX(o.order_date))
+    END AS lifespan,
+    r.customer_segment
+FROM olist_new o
+JOIN rfm_model_seg r ON o.customer_unique_id = r.customer_unique_id
+GROUP BY o.customer_unique_id, r.customer_segment;
 
 
+CREATE VIEW rfm_model AS
+ SELECT 
+        customer_unique_id,
+        COUNT(DISTINCT order_id) AS frequency,
+        DATEDIFF(day, MAX(order_date), (SELECT MAX(order_date) FROM olist_new)) AS recency,
+        AVG(order_total) AS monetary_value
+    FROM 
+        olist_new
+    GROUP BY 
+        customer_unique_id
 
+CREATE VIEW rfm_model_seg AS
+SELECT 
+    customer_unique_id,
+    frequency,
+    recency,
+    monetary_value,
+    CASE 
+        WHEN monetary_value > 100 AND frequency > 5 AND recency < 90 THEN 'High-Value Customers'
+        WHEN monetary_value < 50 AND frequency < 2 AND recency > 180 THEN 'At-Risk Customers'
+        WHEN monetary_value < 50 AND frequency < 2 AND recency < 30 THEN 'New Customers'
+        WHEN monetary_value < 50 AND frequency < 2 AND recency > 30 AND recency < 180 THEN 'Low-Value Customers'
+        WHEN frequency > 5 AND recency < 30 THEN 'Loyal Customers'
+        ELSE 'Other Customers'
+    END AS customer_segment
+FROM 
+    rfm_model
