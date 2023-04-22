@@ -486,22 +486,21 @@ SELECT
     recency,
     monetary_value,
     CASE 
-        WHEN monetary_value > 100 AND frequency > 5 AND recency < 90 THEN 'High-Value Customers'
-        WHEN monetary_value < 50 AND frequency < 2 AND recency > 180 THEN 'At-Risk Customers'
-        WHEN monetary_value < 50 AND frequency < 2 AND recency < 30 THEN 'New Customers'
-        WHEN monetary_value < 50 AND frequency < 2 AND recency > 30 AND recency < 180 THEN 'Low-Value Customers'
-        WHEN frequency > 5 AND recency < 30 THEN 'Loyal Customers'
+        WHEN frequency = 1 THEN 'One-Time Customers'
+        WHEN monetary_value <= 50 THEN 'Low-Value Customers'
+        WHEN monetary_value > 50 AND monetary_value <= 150 THEN 'Mid-Value Customers'
+        WHEN monetary_value > 150 THEN 'High-Value Customers'
         ELSE 'Other Customers'
     END AS customer_segment
 FROM 
-    rfm_model
+    rfm_model;
 
 -- Customer Lifespan
-WITH customer_lifespan AS (
-	SELECT
-    o.customer_unique_id,
-    MIN(o.order_date) AS first_purchase,
-    MAX(o.order_date) AS last_purchase,
+
+SELECT
+o.customer_unique_id,
+MIN(o.order_date) AS first_purchase,
+MAX(o.order_date) AS last_purchase,
     CASE
         WHEN DATEDIFF(day, MIN(o.order_date), MAX(o.order_date)) = 0
         THEN 1
@@ -510,8 +509,8 @@ WITH customer_lifespan AS (
     r.customer_segment
 FROM olist_new o
 JOIN rfm_model_seg r ON o.customer_unique_id = r.customer_unique_id
-GROUP BY o.customer_unique_id, r.customer_segment;
-
+GROUP BY o.customer_unique_id, r.customer_segment
+HAVING customer_segment = 'Other Customers'
 
 CREATE VIEW rfm_model AS
  SELECT 
@@ -531,12 +530,15 @@ SELECT
     recency,
     monetary_value,
     CASE 
-        WHEN monetary_value > 100 AND frequency > 5 AND recency < 90 THEN 'High-Value Customers'
-        WHEN monetary_value < 50 AND frequency < 2 AND recency > 180 THEN 'At-Risk Customers'
-        WHEN monetary_value < 50 AND frequency < 2 AND recency < 30 THEN 'New Customers'
-        WHEN monetary_value < 50 AND frequency < 2 AND recency > 30 AND recency < 180 THEN 'Low-Value Customers'
-        WHEN frequency > 5 AND recency < 30 THEN 'Loyal Customers'
+        WHEN frequency = 1 THEN 'One-Time Customers'
+        WHEN monetary_value <= 50 THEN 'Low-Value Customers'
+        WHEN monetary_value > 50 AND monetary_value <= 150 THEN 'Mid-Value Customers'
+        WHEN monetary_value > 150 THEN 'High-Value Customers'
         ELSE 'Other Customers'
     END AS customer_segment
 FROM 
     rfm_model
+
+SELECT *
+FROM rfm_model_seg
+WHERE customer_segment = 'Other Customers'
